@@ -1,4 +1,5 @@
 CC = $(CROSS_COMPILE)gcc
+AR = $(CROSS_COMPILE)ar
 RM = rm
 
 #CFLAGS = -O0 -g -Wall -c
@@ -10,14 +11,14 @@ OBJ_DIR = obj
 ROOT_DIR := $(shell pwd)
 API_DIR := $(ROOT_DIR)/Api
 
-TARGET_LIB = $(OUTPUT_DIR)/vl53lx_python
+TARGET_LIB = $(OUTPUT_DIR)/vl53lx_python.a
 
 INCLUDES = \
 	-I$(ROOT_DIR) \
 	-I$(API_DIR)/core/inc \
 	-I$(ROOT_DIR)/platform/inc
 
-YTHON_INCLUDES = \
+PYTHON_INCLUDES = \
     -I/usr/include/python3.8
 
 VPATH = \
@@ -46,8 +47,26 @@ LIB_SRCS = \
 	vl53lx_silicon_core.c \
 	vl53lx_wait.c \
 	vl53lx_xtalk.c \
-  \
-  vl53lx_platform.c \
-  vl53lx_platform_ipp.c \ 
-  vl53lx_platform_init.c \
-  vl53lx_platform_log.c \
+  	\
+  	vl53lx_platform.c \
+  	vl53lx_platform_ipp.c\
+  	\
+  	vl53lx_python.c
+
+LIB_OBJS  = $(LIB_SRCS:%.c=$(OBJ_DIR)/%.o)
+
+.PHONY: all
+all: ${TARGET_LIB}
+
+$(TARGET_LIB): $(LIB_OBJS)
+	mkdir -p $(dir $@)
+	$(AR) -rcs $@ $^
+
+$(OBJ_DIR)/%.o:%.c
+	mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDES) $< -o $@
+
+.PHONY: clean
+clean:
+	-${RM} -rf ./$(OUTPUT_DIR)/*  ./$(OBJ_DIR)/*
+

@@ -33,86 +33,19 @@ SOFTWARE.
 #define VERSION_REQUIRED_MINOR 0
 #define VERSION_REQUIRED_BUILD 2
 
-#define VL53L0X_DEFAULT_ADDRESS 0x29
+#define DISTANCEMODE_SHORT  1
+#define DISTANCEMODE_MEDIUM 2
+#define DISTANCEMODE_LONG   3
 
-#define VL53L0X_GOOD_ACCURACY_MODE      0   // Good Accuracy mode
-#define VL53L0X_BETTER_ACCURACY_MODE    1   // Better Accuracy mode
-#define VL53L0X_BEST_ACCURACY_MODE      2   // Best Accuracy mode
-#define VL53L0X_LONG_RANGE_MODE         3   // Longe Range mode
-#define VL53L0X_HIGH_SPEED_MODE         4   // High Speed mode
+#define VL53LX_DEFAULT_ADDRESS 0x29
 
-static VL53L0X_RangingMeasurementData_t    RangingMeasurementData;
-static VL53L0X_RangingMeasurementData_t   *pRangingMeasurementData    = &RangingMeasurementData;
-
-void print_pal_error(VL53L0X_Error Status)
+void print_pal_error(VL53LX_Error Status)
 {
-    char buf[VL53L0X_MAX_STRING_LENGTH];
+    char buf[VL53LX_MAX_STRING_LENGTH];
     VL53L0X_GetPalErrorString(Status, buf);
     printf("API Status: %i : %s\n", Status, buf);
 }
 
-VL53L0X_Error WaitMeasurementDataReady(VL53L0X_DEV Dev)
-{
-    VL53L0X_Error Status = VL53L0X_ERROR_NONE;
-    uint8_t NewDatReady=0;
-    uint32_t LoopNb;
-
-    // Wait until it finished
-    // use timeout to avoid deadlock
-    if (Status == VL53L0X_ERROR_NONE)
-    {
-        LoopNb = 0;
-        do
-        {
-            Status = VL53L0X_GetMeasurementDataReady(Dev, &NewDatReady);
-            if ((NewDatReady == 0x01) || Status != VL53L0X_ERROR_NONE)
-            {
-                break;
-            }
-            LoopNb = LoopNb + 1;
-            VL53L0X_PollingDelay(Dev);
-        } while (LoopNb < VL53L0X_DEFAULT_MAX_LOOP);
-
-        if (LoopNb >= VL53L0X_DEFAULT_MAX_LOOP)
-        {
-            Status = VL53L0X_ERROR_TIME_OUT;
-        }
-    }
-
-    return Status;
-}
-
-VL53L0X_Error WaitStopCompleted(VL53L0X_DEV Dev)
-{
-    VL53L0X_Error Status = VL53L0X_ERROR_NONE;
-    uint32_t StopCompleted=0;
-    uint32_t LoopNb;
-
-    // Wait until it finished
-    // use timeout to avoid deadlock
-    if (Status == VL53L0X_ERROR_NONE)
-    {
-        LoopNb = 0;
-        do
-        {
-            Status = VL53L0X_GetStopCompletedStatus(Dev, &StopCompleted);
-            if ((StopCompleted == 0x00) || Status != VL53L0X_ERROR_NONE)
-            {
-                break;
-            }
-            LoopNb = LoopNb + 1;
-            VL53L0X_PollingDelay(Dev);
-        } while (LoopNb < VL53L0X_DEFAULT_MAX_LOOP);
-
-        if (LoopNb >= VL53L0X_DEFAULT_MAX_LOOP)
-        {
-            Status = VL53L0X_ERROR_TIME_OUT;
-        }
-    }
-
-    return Status;
-}
-    
 /******************************************************************************
  * @brief   Initialises the device.
  *  @param  i2c_address - I2C Address to set for this device
@@ -122,64 +55,56 @@ VL53L0X_Error WaitStopCompleted(VL53L0X_DEV Dev)
  *              being used. If not being used, set to 0.
  * @retval  The Dev Object to pass to other library functions.
  *****************************************************************************/
-VL53L0X_Dev_t *initialise(uint8_t i2c_address, uint8_t TCA9548A_Device, uint8_t TCA9548A_Address)
+VL53LX_Dev_t *initialise(uint8_t i2c_address)
 {
-    VL53L0X_Error Status = VL53L0X_ERROR_NONE;
+    VL53LX_Error Status = VL53LX_ERROR_NONE;
     uint32_t refSpadCount;
     uint8_t isApertureSpads;
     uint8_t VhvSettings;
     uint8_t PhaseCal;
-    VL53L0X_Version_t                   Version;
-    VL53L0X_Version_t                  *pVersion   = &Version;
-    VL53L0X_DeviceInfo_t                DeviceInfo;
+    VL53LX_Version_t                   Version;
+    VL53LX_Version_t                  *pVersion   = &Version;
+    VL53LX_DeviceInfo_t                DeviceInfo;
     int32_t status_int;
 
-    if (TCA9548A_Device < 8)
-    {
-        printf ("VL53L0X Start Ranging Address 0x%02X TCA9548A Device %d TCA9548A Address 0x%02X\n\n",
-                    i2c_address, TCA9548A_Device, TCA9548A_Address);
-    }
-    else
-    {
-        printf ("VL53L0X Start Ranging Address 0x%02X\n\n", i2c_address);
-    }
+    printf ("VL53LX Start Ranging Address 0x%02X\n\n", i2c_address);
 
-    VL53L0X_Dev_t *dev = (VL53L0X_Dev_t *)malloc(sizeof(VL53L0X_Dev_t));
-    memset(dev, 0, sizeof(VL53L0X_Dev_t));
+    VL53LX_Dev_t *dev = (VL53LX_Dev_t *)malloc(sizeof(VL53LX_Dev_t));
+    memset(dev, 0, sizeof(VL53LX_Dev_t));
 
     if (dev != NULL)
     {
         // Initialize Comms to the default address to start
         dev->I2cDevAddr      = i2c_address;
-        dev->TCA9548A_Device = TCA9548A_Device;
-        dev->TCA9548A_Address = TCA9548A_Address;
 
-        VL53L0X_init(dev);
+        VL53LX_Error VL53LX_DataInit(VL53LX_DEV Dev);
+        
+        VL53LX_init(dev);
         /*
-         *  Get the version of the VL53L0X API running in the firmware
+         *  Get the version of the VL53LX API running in the firmware
          */
 
         // If the requested address is not the default, change it in the device
-        if (i2c_address != VL53L0X_DEFAULT_ADDRESS)
+        if (i2c_address != VL53LX_DEFAULT_ADDRESS)
         {
             printf("Setting I2C Address to 0x%02X\n", i2c_address);
             // Address requested not default so set the address.
             // This assumes that the shutdown pin has been controlled
             // externally to this function.
-            // The VL53L0X API accepts an 8-bit i2c address (7-bits + the
+            // The VL53LX API accepts an 8-bit i2c address (7-bits + the
             // R/W bit) so we must shift our address left one bit (multiply
             // it by two) to turn the 7-bit (eg 0x29) into 8-bit (0x52).
-            Status = VL53L0X_SetDeviceAddress(dev, (i2c_address * 2));
+            Status = VL53LX_SetDeviceAddress(dev, (i2c_address * 2));
             dev->I2cDevAddr      = i2c_address;
         }
 
-        if (Status == VL53L0X_ERROR_NONE)
+        if (Status == VL53LX_ERROR_NONE)
         {
-            status_int = VL53L0X_GetVersion(pVersion);
+            status_int = VL53LX_GetVersion(pVersion);
             if (status_int == 0)
             {
                 /*
-                 *  Verify the version of the VL53L0X API running in the firmrware
+                 *  Verify the version of the VL53LX API running in the firmrware
                  */
 
                 // Check the Api version. If it is not correct, put out a warning
@@ -187,60 +112,58 @@ VL53L0X_Dev_t *initialise(uint8_t i2c_address, uint8_t TCA9548A_Device, uint8_t 
                     pVersion->minor != VERSION_REQUIRED_MINOR ||
                     pVersion->build != VERSION_REQUIRED_BUILD )
                 {
-                    printf("VL53L0X API Version Warning: Your firmware %d.%d.%d (revision %d). This requires %d.%d.%d.\n",
+                    printf("VL53LX API Version Warning: Your firmware %d.%d.%d (revision %d). This requires %d.%d.%d.\n",
                         pVersion->major, pVersion->minor, pVersion->build, pVersion->revision,
                         VERSION_REQUIRED_MAJOR, VERSION_REQUIRED_MINOR, VERSION_REQUIRED_BUILD);
                 }
                 // End of implementation specific
 
-                Status = VL53L0X_DataInit(dev); // Data initialization
-                if(Status == VL53L0X_ERROR_NONE)
+                Status = VL53LX_DataInit(dev); // Data initialization
+                if(Status == VL53LX_ERROR_NONE)
                 {
-                    Status = VL53L0X_GetDeviceInfo(dev, &DeviceInfo);
-                    if(Status == VL53L0X_ERROR_NONE)
+                    Status = VL53LX_GetDeviceInfo(dev, &DeviceInfo);
+                    if(Status == VL53LX_ERROR_NONE)
                     {
-                        printf("VL53L0X_GetDeviceInfo:\n");
-                        printf("Device Name : %s\n", DeviceInfo.Name);
-                        printf("Device Type : %s\n", DeviceInfo.Type);
-                        printf("Device ID : %s\n", DeviceInfo.ProductId);
+                        printf("VL53LX_GetDeviceInfo:\n");
+                        printf("Product Type : %d\n", DeviceInfo.ProductType);
                         printf("ProductRevisionMajor : %d\n", DeviceInfo.ProductRevisionMajor);
                         printf("ProductRevisionMinor : %d\n", DeviceInfo.ProductRevisionMinor);
 
-                        if ((DeviceInfo.ProductRevisionMajor != 1) && (DeviceInfo.ProductRevisionMinor != 1)) {
-                            printf("Error expected cut 1.1 but found cut %d.%d\n",
+                        if ((DeviceInfo.ProductRevisionMajor != 1) && (DeviceInfo.ProductRevisionMinor != 2)) {
+                            printf("Error expected cut 1.2 but found cut %d.%d\n",
                                     DeviceInfo.ProductRevisionMajor, DeviceInfo.ProductRevisionMinor);
-                            Status = VL53L0X_ERROR_NOT_SUPPORTED;
+                            Status = VL53LX_ERROR_NOT_SUPPORTED;
                         }
                     }
 
-                    if(Status == VL53L0X_ERROR_NONE)
+                    if(Status == VL53LX_ERROR_NONE)
                     {
-                        Status = VL53L0X_StaticInit(dev); // Device Initialization
+                        Status = VL53LX_StaticInit(dev); // Device Initialization
                         // StaticInit will set interrupt by default
 
-                        if(Status == VL53L0X_ERROR_NONE)
+                        if(Status == VL53LX_ERROR_NONE)
                         {
-                            Status = VL53L0X_PerformRefCalibration(dev,
+                            Status = VL53LX_PerformRefCalibration(dev,
                                     &VhvSettings, &PhaseCal); // Device Initialization
 
-                            if(Status == VL53L0X_ERROR_NONE)
+                            if(Status == VL53LX_ERROR_NONE)
                             {
-                                Status = VL53L0X_PerformRefSpadManagement(dev,
+                                Status = VL53LX_PerformRefSpadManagement(dev,
                                         &refSpadCount, &isApertureSpads); // Device Initialization
 
-                                if(Status != VL53L0X_ERROR_NONE)
+                                if(Status != VL53LX_ERROR_NONE)
                                 {
-                                    printf ("Call of VL53L0X_PerformRefSpadManagement\n");
+                                    printf ("Call of VL53LX_PerformRefSpadManagement\n");
                                 }
                             }
                             else
                             {
-                                printf ("Call of VL53L0X_PerformRefCalibration\n");
+                                printf ("Call of VL53LX_PerformRefCalibration\n");
                             }
                         }
                         else
                         {
-                            printf ("Call of VL53L0X_StaticInit\n");
+                            printf ("Call of VL53LX_StaticInit\n");
                         }
                     }
                     else
@@ -250,18 +173,18 @@ VL53L0X_Dev_t *initialise(uint8_t i2c_address, uint8_t TCA9548A_Device, uint8_t 
                 }
                 else
                 {
-                    printf ("Call of VL53L0X_DataInit\n");
+                    printf ("Call of VL53LX_DataInit\n");
                 }
             }
             else
             {
-                Status = VL53L0X_ERROR_CONTROL_INTERFACE;
-                printf("Call of VL53L0X_GetVersion\n");
+                Status = VL53LX_ERROR_CONTROL_INTERFACE;
+                printf("Call of VL53LX_GetVersion\n");
             }
         }
         else
         {
-            printf("Call of VL53L0X_SetAddress\n");
+            printf("Call of VL53LX_SetAddress\n");
         }
 
         print_pal_error(Status);
@@ -295,136 +218,19 @@ VL53L0X_Dev_t *initialise(uint8_t i2c_address, uint8_t TCA9548A_Device, uint8_t 
  *       20 ms timing budget 1.2m range
  * @retval  Error code, 0 for success.
  *****************************************************************************/
-VL53L0X_Error startRanging(VL53L0X_Dev_t *dev, int mode)
+VL53LX_Error startRanging(VL53LX_Dev_t *dev, int mode)
 {
-    if (mode < VL53L0X_GOOD_ACCURACY_MODE &&
-            mode > VL53L0X_HIGH_SPEED_MODE)
-    {
-        printf("Invalid mode %d specified\n", mode);
-        return -1;
-    }
-
     // Setup in continuous ranging mode
-    VL53L0X_Error Status = VL53L0X_SetDeviceMode(dev, VL53L0X_DEVICEMODE_CONTINUOUS_RANGING);
+    VL53LX_Error Status = VL53LX_SetDeviceMode(dev, mode);
 
-    if(Status == VL53L0X_ERROR_NONE)
+    if(Status == VL53LX_ERROR_NONE)
     {
-        // Set accuracy mode
-        switch (mode)
-        {
-            case VL53L0X_BEST_ACCURACY_MODE:
-                printf("VL53L0X_BEST_ACCURACY_MODE\n");
-                if (Status == VL53L0X_ERROR_NONE)
-                {
-                    Status = VL53L0X_SetLimitCheckValue(dev,
-                        VL53L0X_CHECKENABLE_SIGNAL_RATE_FINAL_RANGE,
-                        (FixPoint1616_t)(0.25*65536));
-
-                    if (Status == VL53L0X_ERROR_NONE)
-                    {
-                        Status = VL53L0X_SetLimitCheckValue(dev,
-                            VL53L0X_CHECKENABLE_SIGMA_FINAL_RANGE,
-                            (FixPoint1616_t)(18*65536));
-
-                        if (Status == VL53L0X_ERROR_NONE)
-                        {
-                            Status =
-                                VL53L0X_SetMeasurementTimingBudgetMicroSeconds(dev, 200000);
-                        }
-                    }
-                }
-                break;
-
-            case VL53L0X_LONG_RANGE_MODE:
-                printf("VL53L0X_LONG_RANGE_MODE\n");
-                if (Status == VL53L0X_ERROR_NONE)
-                {
-                    Status = VL53L0X_SetLimitCheckValue(dev,
-                                VL53L0X_CHECKENABLE_SIGNAL_RATE_FINAL_RANGE,
-                                (FixPoint1616_t)(0.1*65536));
-
-                    if (Status == VL53L0X_ERROR_NONE)
-                    {
-                        Status = VL53L0X_SetLimitCheckValue(dev,
-                                    VL53L0X_CHECKENABLE_SIGMA_FINAL_RANGE,
-                                    (FixPoint1616_t)(60*65536));
-
-                        if (Status == VL53L0X_ERROR_NONE)
-                        {
-                            Status =
-                                VL53L0X_SetMeasurementTimingBudgetMicroSeconds(dev, 33000);
-
-                            if (Status == VL53L0X_ERROR_NONE)
-                            {
-                                Status = VL53L0X_SetVcselPulsePeriod(dev,
-                                            VL53L0X_VCSEL_PERIOD_PRE_RANGE, 18);
-
-                                if (Status == VL53L0X_ERROR_NONE)
-                                {
-                                    Status = VL53L0X_SetVcselPulsePeriod(dev,
-                                                VL53L0X_VCSEL_PERIOD_FINAL_RANGE, 14);
-                                }
-                            }
-                        }
-                    }
-                }
-                break;
-
-            case VL53L0X_HIGH_SPEED_MODE:
-                printf("VL53L0X_HIGH_SPEED_MODE\n");
-                if (Status == VL53L0X_ERROR_NONE)
-                {
-                    Status = VL53L0X_SetLimitCheckValue(dev,
-                                VL53L0X_CHECKENABLE_SIGNAL_RATE_FINAL_RANGE,
-                                (FixPoint1616_t)(0.25*65536));
-
-                    if (Status == VL53L0X_ERROR_NONE)
-                    {
-                        Status = VL53L0X_SetLimitCheckValue(dev,
-                                    VL53L0X_CHECKENABLE_SIGMA_FINAL_RANGE,
-                                    (FixPoint1616_t)(32*65536));
-
-                        if (Status == VL53L0X_ERROR_NONE)
-                        {
-                            Status =
-                                VL53L0X_SetMeasurementTimingBudgetMicroSeconds(dev, 20000);
-                        }
-                    }
-                }
-                break;
-
-            case VL53L0X_BETTER_ACCURACY_MODE:
-                printf("VL53L0X_BETTER_ACCURACY_MODE\n");
-                if (Status == VL53L0X_ERROR_NONE)
-                {
-                    Status =
-                        VL53L0X_SetMeasurementTimingBudgetMicroSeconds(dev, 66000);
-                }
-                break;
-
-            case VL53L0X_GOOD_ACCURACY_MODE:
-            default:
-                printf("VL53L0X_GOOD_ACCURACY_MODE\n");
-                if (Status == VL53L0X_ERROR_NONE)
-                {
-                    Status =
-                        VL53L0X_SetMeasurementTimingBudgetMicroSeconds(dev, 33000);
-                }
-                break;
-        }
-
-        if(Status == VL53L0X_ERROR_NONE)
-        {
-            Status = VL53L0X_StartMeasurement(dev);
-        }
-        else
-        {
-            printf("Set Accuracy\n");
-        }
+      
+        Status = VL53LX_StartMeasurement(dev)
     }
     else
     {
-        printf ("Call of VL53L0X_SetDeviceMode\n");
+        printf ("Call of VL53LX_SetDeviceMode\n");
     }
 
     print_pal_error(Status);
@@ -432,32 +238,34 @@ VL53L0X_Error startRanging(VL53L0X_Dev_t *dev, int mode)
     return Status;
 }
 
+
 /******************************************************************************
  * @brief   Get current distance in mm
  * @return  Current distance in mm or -1 on error
  *****************************************************************************/
-int32_t getDistance(VL53L0X_Dev_t *dev)
+/*
+int32_t getDistance(VL53LX_Dev_t *dev)
 {
-    VL53L0X_Error Status = VL53L0X_ERROR_NONE;
+    VL53LX_Error Status = VL53LX_ERROR_NONE;
     int32_t current_distance = -1;
 
     if (dev != NULL)
     {
         Status = WaitMeasurementDataReady(dev);
 
-        if(Status == VL53L0X_ERROR_NONE)
+        if(Status == VL53LX_ERROR_NONE)
         {
-            Status = VL53L0X_GetRangingMeasurementData(dev,
+            Status = VL53LX_GetRangingMeasurementData(dev,
                                 pRangingMeasurementData);
-            if(Status == VL53L0X_ERROR_NONE)
+            if(Status == VL53LX_ERROR_NONE)
             {
                 current_distance = pRangingMeasurementData->RangeMilliMeter;
             }
 
             // Clear the interrupt
-            VL53L0X_ClearInterruptMask(dev,
-                                VL53L0X_REG_SYSTEM_INTERRUPT_GPIO_NEW_SAMPLE_READY);
-            // VL53L0X_PollingDelay(dev);
+            VL53LX_ClearInterruptMask(dev,
+                                VL53LX_REG_SYSTEM_INTERRUPT_GPIO_NEW_SAMPLE_READY);
+            // VL53LX_PollingDelay(dev);
         }
     }
     else
@@ -467,30 +275,31 @@ int32_t getDistance(VL53L0X_Dev_t *dev)
 
     return current_distance;
 }
+*/
 
 /******************************************************************************
  * @brief   Stop Ranging
  *****************************************************************************/
-void stopRanging(VL53L0X_Dev_t *dev)
+void stopRanging(VL53LX_Dev_t *dev)
 {
-    VL53L0X_Error Status = VL53L0X_ERROR_NONE;
+    VL53LX_Error Status = VL53LX_ERROR_NONE;
 
-    printf ("Call of VL53L0X_StopMeasurement\n");
+    printf ("Call of VL53LX_StopMeasurement\n");
 
     if (dev != NULL)
     {
-        Status = VL53L0X_StopMeasurement(dev);
+        Status = VL53LX_StopMeasurement(dev);
 
-        if(Status == VL53L0X_ERROR_NONE)
+        if(Status == VL53LX_ERROR_NONE)
         {
             printf ("Wait for stop to be completed\n");
             Status = WaitStopCompleted(dev);
         }
 
-        if(Status == VL53L0X_ERROR_NONE)
+        if(Status == VL53LX_ERROR_NONE)
         {
-            Status = VL53L0X_ClearInterruptMask(dev,
-                VL53L0X_REG_SYSTEM_INTERRUPT_GPIO_NEW_SAMPLE_READY);
+            Status = VL53LX_ClearInterruptMask(dev,
+                VL53LX_REG_SYSTEM_INTERRUPT_GPIO_NEW_SAMPLE_READY);
         }
 
         print_pal_error(Status);
@@ -503,3 +312,55 @@ void stopRanging(VL53L0X_Dev_t *dev)
         printf("Device not initialized\n");
     }
 }
+/*
+static VL53LX_Dev_t        dev;
+static VL53LX_DEV          Dev =  &dev;
+
+int status;
+
+VL53LX_Error VL53LX_DataInit(VL53LX_DEV Dev);
+
+
+void RangingLoop(void)
+{
+  VL53LX_MultiRangingData_t MultiRangingData;
+  VL53LX_MultiRangingData_t *pMultiRangingData = &MultiRangingData;
+  uint8_t NewDataReady=0;
+  int no_of_object_found=0,j;
+  printf("Ranging loop starts\n");
+  
+  status = VL53LX_WaitDeviceBooted(Dev);
+  status = VL53LX_DataInit(Dev);
+  status = VL53LX_StartMeasurement(Dev);
+  
+  if(status){
+    printf("VL53LX_StartMeasurement failed: error = %d \n", status);
+    while(1);
+  }
+  
+  do{ // polling mode
+    status = VL53LX_GetMeasurementDataReady(Dev, &NewDataReady);                        
+    usleep(250000); // 250 millisecond polling period, could be 1 millisecond.
+    if((!status)&&(NewDataReady!=0)){
+      status = VL53LX_GetMultiRangingData(Dev, pMultiRangingData);
+      no_of_object_found=pMultiRangingData->NumberOfObjectsFound;
+      printf("Count=%5d, ", pMultiRangingData->StreamCount);
+      printf("#Objs=%1d ", no_of_object_found);
+      for(j=0;j<no_of_object_found;j++){
+        if(j!=0)printf("\n                     ");
+        printf("status=%d, D=%5dmm, S=%7dmm, Signal=%2.2f Mcps, Ambient=%2.2f Mcps",
+               pMultiRangingData->RangeData[j].RangeStatus,
+               pMultiRangingData->RangeData[j].RangeMilliMeter,
+               pMultiRangingData->RangeData[j].SigmaMilliMeter,
+               pMultiRangingData->RangeData[j].SignalRateRtnMegaCps/65536.0,
+               pMultiRangingData->RangeData[j].AmbientRateRtnMegaCps/65536.0);
+      }
+      printf ("\n");
+      if (status==0){
+        status = VL53LX_ClearInterruptAndStartMeasurement(Dev);
+      }
+    }
+  }
+  while (1);
+}
+*/
