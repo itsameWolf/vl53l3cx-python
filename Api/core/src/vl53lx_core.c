@@ -3935,7 +3935,6 @@ VL53LX_Error VL53LX_dynamic_xtalk_correction_calc_new_xtalk(
 	VL53LX_xtalk_calibration_results_t  *pC = &(pdev->xtalk_cal);
 	uint32_t *pcpo;
 	uint32_t max, nXtalk, cXtalk;
-	uint32_t incXtalk, cval;
 
 	LOG_FUNCTION_START("");
 
@@ -4074,21 +4073,16 @@ VL53LX_Error VL53LX_dynamic_xtalk_correction_calc_new_xtalk(
 			(pdev->tuning_parms.tp_hist_merge == 1) &&
 			(nXtalk != 0)) {
 			cXtalk =
-			pX->algo__crosstalk_compensation_plane_offset_kcps;
+			pC->algo__xtalk_cpo_HistoMerge_kcps[histo_merge_nb-1];
 			SmudgeFactor = cXtalk * 1000 / nXtalk;
-			if ((max ==  0)||
-				(SmudgeFactor >= pconfig->max_smudge_factor))
+			if (SmudgeFactor >= pconfig->max_smudge_factor)
 				pout->new_xtalk_applied_flag = 0;
-			else {
-				incXtalk = nXtalk / max;
-				cval = 0;
-				for (i = 0; i < max-1; i++) {
-					cval += incXtalk;
-					*pcpo = cval;
-					pcpo++;
+			else if (SmudgeFactor > 0)
+				for (i = 0; i < max; i++) {
+				*pcpo *= 1000;
+				*pcpo /= SmudgeFactor;
+				pcpo++;
 				}
-				*pcpo = nXtalk;
-			}
 		}
 		if (pout->new_xtalk_applied_flag) {
 

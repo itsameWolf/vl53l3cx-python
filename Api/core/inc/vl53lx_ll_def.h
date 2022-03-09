@@ -1425,7 +1425,6 @@ typedef struct {
 	int16_t PreviousRangeMilliMeter[VL53LX_MAX_RANGE_RESULTS];
 	uint8_t PreviousRangeStatus[VL53LX_MAX_RANGE_RESULTS];
 	uint8_t PreviousExtendedRange[VL53LX_MAX_RANGE_RESULTS];
-	uint8_t PreviousRangeActiveResults;
 	uint8_t PreviousStreamCount;
 } VL53LX_LLDriverData_t;
 

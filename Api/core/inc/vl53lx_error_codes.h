@@ -31,9 +31,9 @@ extern "C" {
  ***************************************
  */
 
-/**
+/*
  * @defgroup VL53LX_define_Error_group Error and Warning code returned by API
- *  The following DEFINE are used to identify the TOF device ERROR
+ *  The following DEFINE are used to identify the PAL ERROR
  *  @{
  */
 
@@ -42,7 +42,7 @@ typedef int8_t VL53LX_Error;
 #define VL53LX_ERROR_NONE                              ((VL53LX_Error)  0)
 #define VL53LX_ERROR_CALIBRATION_WARNING               ((VL53LX_Error) - 1)
 	/*!< Warning invalid calibration data may be in used
-	 *	\a VL53LX_InitData()
+	 *	\a  VL53LX_InitData()
 	 *	\a VL53LX_GetOffsetCalibrationData
 	 *	\a VL53LX_SetOffsetCalibrationData
 	 */
@@ -123,7 +123,7 @@ typedef int8_t VL53LX_Error;
 	/*!<  Thrown if the tuning file key table version does not match with
 	 * expected value. The driver expects the key table version to match
 	 * the compiled default version number in the define
-	 * VL53LX_TUNINGPARM_KEY_TABLE_VERSION_DEFAULT
+	 * #VL53LX_TUNINGPARM_KEY_TABLE_VERSION_DEFAULT
 	 */
 
 #define VL53LX_WARNING_REF_SPAD_CHAR_NOT_ENOUGH_SPADS   ((VL53LX_Error) - 28)

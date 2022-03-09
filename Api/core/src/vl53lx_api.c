@@ -605,7 +605,6 @@ VL53LX_Error VL53LX_StartMeasurement(VL53LX_DEV Dev)
 		pdev->PreviousExtendedRange[i] = 0;
 	}
 	pdev->PreviousStreamCount = 0;
-	pdev->PreviousRangeActiveResults = 0;
 
 	DeviceMeasurementMode = VL53LXDevDataGet(Dev, LLData.measurement_mode);
 
@@ -801,10 +800,6 @@ static VL53LX_Error SetTargetData(VL53LX_DEV Dev,
 
 	pRangeData->ExtendedRange = 0;
 
-	if ((active_results != 1) ||
-		(pdev->PreviousRangeActiveResults != 1))
-		ExtendedRangeEnabled = 0;
-
 	if (ExtendedRangeEnabled &&
 		(pRangeData->RangeStatus ==
 			VL53LX_RANGESTATUS_WRAP_TARGET_FAIL ||
@@ -955,7 +950,6 @@ static VL53LX_Error SetTargetData(VL53LX_DEV Dev,
 	pdev->PreviousRangeMilliMeter[iteration] = RangeMillimeterInit;
 	pdev->PreviousRangeStatus[iteration] = pRangeData->RangeStatus;
 	pdev->PreviousExtendedRange[iteration] = pRangeData->ExtendedRange;
-	pdev->PreviousRangeActiveResults = active_results;
 
 	Range = pRangeData->RangeMilliMeter;
 	if ((pRangeData->RangeStatus ==  VL53LX_RANGESTATUS_RANGE_VALID) &&

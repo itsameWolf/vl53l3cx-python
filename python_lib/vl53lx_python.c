@@ -49,10 +49,6 @@ void print_pal_error(VL53LX_Error Status)
 /******************************************************************************
  * @brief   Initialises the device.
  *  @param  i2c_address - I2C Address to set for this device
- *  @param  TCA9548A_Device - Device number on TCA9548A I2C multiplexer if
- *              being used. If not being used, set to 255.
- *  @param  TCA9548A_Address - Address of TCA9548A I2C multiplexer if
- *              being used. If not being used, set to 0.
  * @retval  The Dev Object to pass to other library functions.
  *****************************************************************************/
 VL53LX_Dev_t *initialise(uint8_t i2c_address)
@@ -148,8 +144,7 @@ VL53LX_Dev_t *initialise(uint8_t i2c_address)
 
                             if(Status == VL53LX_ERROR_NONE)
                             {
-                                Status = VL53LX_PerformRefSpadManagement(dev,
-                                        &refSpadCount, &isApertureSpads); // Device Initialization
+                                Status = VL53LX_PerformRefSpadManagement(dev, &refSpadCount, &isApertureSpads); // Device Initialization
 
                                 if(Status != VL53LX_ERROR_NONE)
                                 {
@@ -200,11 +195,9 @@ VL53LX_Dev_t *initialise(uint8_t i2c_address)
 /******************************************************************************
  * @brief   Start Ranging
  * @param   mode - ranging mode
- *              0 - Good Accuracy mode
- *              1 - Better Accuracy mode
- *              2 - Best Accuracy mode
+ *              1 - Short Range Mode
+ *              2 - Medium Range Mode
  *              3 - Longe Range mode
- *              4 - High Speed mode
  * @note Mode Definitions
  *   Good Accuracy mode
  *       33 ms timing budget 1.2m range
@@ -221,18 +214,34 @@ VL53LX_Dev_t *initialise(uint8_t i2c_address)
 VL53LX_Error startRanging(VL53LX_Dev_t *dev, int mode)
 {
     // Setup in continuous ranging mode
-    VL53LX_Error Status = VL53LX_SetDeviceMode(dev, mode);
 
+    VL53LX_Error Status =  VL53LX_WaitDeviceBooted(dev);
     if(Status == VL53LX_ERROR_NONE)
     {
-      
-        Status = VL53LX_StartMeasurement(dev)
+        VL53LX_Error Status =  VL53LX_DataInit(dev);
+        if(Status == VL53LX_ERROR_NONE)
+        {
+            VL53LX_Error Status = VL53LX_SetDistanceMode(dev, mode);
+            if(Status == VL53LX_ERROR_NONE)
+            {
+                Status = VL53LX_StartMeasurement(dev);
+            }
+            else
+            {
+                printf ("Call of VL53LX_SetDistanceMode\n");
+            }
+        }
+        else
+        {
+            printf ("Call of VL53LX_DataInit\n");
+        }
+        
     }
     else
     {
-        printf ("Call of VL53LX_SetDeviceMode\n");
+        printf ("Call of VL53LX_WaitDeviceBooted\n");
     }
-
+    
     print_pal_error(Status);
 
     return Status;
@@ -243,29 +252,34 @@ VL53LX_Error startRanging(VL53LX_Dev_t *dev, int mode)
  * @brief   Get current distance in mm
  * @return  Current distance in mm or -1 on error
  *****************************************************************************/
-/*
-int32_t getDistance(VL53LX_Dev_t *dev)
+VL53LX_MultiRangingData_t getDistance(VL53LX_Dev_t *dev)
 {
     VL53LX_Error Status = VL53LX_ERROR_NONE;
-    int32_t current_distance = -1;
+
+    VL53LX_MultiRangingData_t MultiRangingData;
+    VL53LX_MultiRangingData_t *pMultiRangingData = &MultiRangingData;
+
+    int8_t NewDataReady=0;
+
+    Status = VL53LX_GetMeasurementDataReady(dev, &NewDataReady);
 
     if (dev != NULL)
     {
-        Status = WaitMeasurementDataReady(dev);
-
-        if(Status == VL53LX_ERROR_NONE)
+        if((!Status)&&(NewDataReady!=0))
         {
-            Status = VL53LX_GetRangingMeasurementData(dev,
-                                pRangingMeasurementData);
+            Status = VL53LX_GetMultiRangingData(dev, pMultiRangingData);
             if(Status == VL53LX_ERROR_NONE)
             {
-                current_distance = pRangingMeasurementData->RangeMilliMeter;
+                Status = VL53LX_ClearInterruptAndStartMeasurement(dev);
             }
-
-            // Clear the interrupt
-            VL53LX_ClearInterruptMask(dev,
-                                VL53LX_REG_SYSTEM_INTERRUPT_GPIO_NEW_SAMPLE_READY);
-            // VL53LX_PollingDelay(dev);
+            else
+            {
+                printf ("Call of VL53LX_GetMultiRangingData\n");
+            }
+        }
+        else
+        {
+            printf ("Call of VL53LX_GetMeasurementDataReady\n");
         }
     }
     else
@@ -273,9 +287,8 @@ int32_t getDistance(VL53LX_Dev_t *dev)
         printf("Device not initialized\n");
     }
 
-    return current_distance;
+    return MultiRangingData;
 }
-*/
 
 /******************************************************************************
  * @brief   Stop Ranging
@@ -296,12 +309,6 @@ void stopRanging(VL53LX_Dev_t *dev)
             Status = WaitStopCompleted(dev);
         }
 
-        if(Status == VL53LX_ERROR_NONE)
-        {
-            Status = VL53LX_ClearInterruptMask(dev,
-                VL53LX_REG_SYSTEM_INTERRUPT_GPIO_NEW_SAMPLE_READY);
-        }
-
         print_pal_error(Status);
 
         free(dev);
@@ -312,55 +319,3 @@ void stopRanging(VL53LX_Dev_t *dev)
         printf("Device not initialized\n");
     }
 }
-/*
-static VL53LX_Dev_t        dev;
-static VL53LX_DEV          Dev =  &dev;
-
-int status;
-
-VL53LX_Error VL53LX_DataInit(VL53LX_DEV Dev);
-
-
-void RangingLoop(void)
-{
-  VL53LX_MultiRangingData_t MultiRangingData;
-  VL53LX_MultiRangingData_t *pMultiRangingData = &MultiRangingData;
-  uint8_t NewDataReady=0;
-  int no_of_object_found=0,j;
-  printf("Ranging loop starts\n");
-  
-  status = VL53LX_WaitDeviceBooted(Dev);
-  status = VL53LX_DataInit(Dev);
-  status = VL53LX_StartMeasurement(Dev);
-  
-  if(status){
-    printf("VL53LX_StartMeasurement failed: error = %d \n", status);
-    while(1);
-  }
-  
-  do{ // polling mode
-    status = VL53LX_GetMeasurementDataReady(Dev, &NewDataReady);                        
-    usleep(250000); // 250 millisecond polling period, could be 1 millisecond.
-    if((!status)&&(NewDataReady!=0)){
-      status = VL53LX_GetMultiRangingData(Dev, pMultiRangingData);
-      no_of_object_found=pMultiRangingData->NumberOfObjectsFound;
-      printf("Count=%5d, ", pMultiRangingData->StreamCount);
-      printf("#Objs=%1d ", no_of_object_found);
-      for(j=0;j<no_of_object_found;j++){
-        if(j!=0)printf("\n                     ");
-        printf("status=%d, D=%5dmm, S=%7dmm, Signal=%2.2f Mcps, Ambient=%2.2f Mcps",
-               pMultiRangingData->RangeData[j].RangeStatus,
-               pMultiRangingData->RangeData[j].RangeMilliMeter,
-               pMultiRangingData->RangeData[j].SigmaMilliMeter,
-               pMultiRangingData->RangeData[j].SignalRateRtnMegaCps/65536.0,
-               pMultiRangingData->RangeData[j].AmbientRateRtnMegaCps/65536.0);
-      }
-      printf ("\n");
-      if (status==0){
-        status = VL53LX_ClearInterruptAndStartMeasurement(Dev);
-      }
-    }
-  }
-  while (1);
-}
-*/
