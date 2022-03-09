@@ -1,5 +1,4 @@
 CC = $(CROSS_COMPILE)gcc
-AR = $(CROSS_COMPILE)ar
 RM = rm
 
 #CFLAGS = -O0 -g -Wall -c
@@ -11,7 +10,7 @@ OBJ_DIR = obj
 ROOT_DIR := $(shell pwd)
 API_DIR := $(ROOT_DIR)/Api
 
-TARGET_LIB = $(OUTPUT_DIR)/vl53lx_python.a
+TARGET_LIB = $(OUTPUT_DIR)/vl53lx_python
 
 INCLUDES = \
 	-I$(ROOT_DIR) \
@@ -47,10 +46,8 @@ LIB_SRCS = \
 	vl53lx_silicon_core.c \
 	vl53lx_wait.c \
 	vl53lx_xtalk.c \
-  	\
   	vl53lx_platform.c \
   	vl53lx_platform_ipp.c\
-  	\
   	vl53lx_python.c
 
 LIB_OBJS  = $(LIB_SRCS:%.c=$(OBJ_DIR)/%.o)
@@ -60,13 +57,13 @@ all: ${TARGET_LIB}
 
 $(TARGET_LIB): $(LIB_OBJS)
 	mkdir -p $(dir $@)
-	$(AR) -rcs $@ $^
+	$(CC) -shared $^ $(PYTHON_INCLUDES) $(INCLUDES) -lpthread -o $@.so
 
 $(OBJ_DIR)/%.o:%.c
 	mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDES) $< -o $@
+	$(CC) $(CFLAGS) $(PYTHON_INCLUDES) $(INCLUDES) $< -o $@
 
 .PHONY: clean
 clean:
-	-${RM} -rf ./$(OUTPUT_DIR)/*  ./$(OBJ_DIR)/*
+	-${RM} -rf ./$(OUTPUT_DIR) ./$(OBJ_DIR)
 
