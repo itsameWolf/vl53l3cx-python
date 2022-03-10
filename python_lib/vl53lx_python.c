@@ -39,25 +39,14 @@ SOFTWARE.
 
 #define VL53LX_DEFAULT_ADDRESS 0x29
 
-void print_pal_error(VL53LX_Error Status)
-{
-    char buf[VL53LX_MAX_STRING_LENGTH];
-    VL53L0X_GetPalErrorString(Status, buf);
-    printf("API Status: %i : %s\n", Status, buf);
-}
-
 /******************************************************************************
  * @brief   Initialises the device.
  *  @param  i2c_address - I2C Address to set for this device
  * @retval  The Dev Object to pass to other library functions.
  *****************************************************************************/
-VL53LX_Dev_t *initialise(uint8_t i2c_address)
+VL53LX_Dev_t *initialise(uint8_t i2c_address, uint8_t factory_calibration)
 {
     VL53LX_Error Status = VL53LX_ERROR_NONE;
-    uint32_t refSpadCount;
-    uint8_t isApertureSpads;
-    uint8_t VhvSettings;
-    uint8_t PhaseCal;
     VL53LX_Version_t                   Version;
     VL53LX_Version_t                  *pVersion   = &Version;
     VL53LX_DeviceInfo_t                DeviceInfo;
@@ -75,7 +64,6 @@ VL53LX_Dev_t *initialise(uint8_t i2c_address)
 
         VL53LX_Error VL53LX_DataInit(VL53LX_DEV Dev);
         
-        VL53LX_init(dev);
         /*
          *  Get the version of the VL53LX API running in the firmware
          */
@@ -115,8 +103,11 @@ VL53LX_Dev_t *initialise(uint8_t i2c_address)
                 // End of implementation specific
 
                 Status = VL53LX_DataInit(dev); // Data initialization
-                if(Status == VL53LX_ERROR_NONE)
+                if((Status == VL53LX_ERROR_NONE)&&factory_calibration)
                 {
+                    VL53LX_CalibrationData_t CalibrationData;
+                    VL53LX_CalibrationData_t *pCalibrationData = &CalibrationData;
+
                     Status = VL53LX_GetDeviceInfo(dev, &DeviceInfo);
                     if(Status == VL53LX_ERROR_NONE)
                     {
@@ -131,39 +122,49 @@ VL53LX_Dev_t *initialise(uint8_t i2c_address)
                             Status = VL53LX_ERROR_NOT_SUPPORTED;
                         }
                     }
-
                     if(Status == VL53LX_ERROR_NONE)
                     {
-                        Status = VL53LX_StaticInit(dev); // Device Initialization
-                        // StaticInit will set interrupt by default
+                        Status = VL53LX_PerformRefSpadManagement(dev); // Device Initialization
 
-                        if(Status == VL53LX_ERROR_NONE)
+                        if(Status != VL53LX_ERROR_NONE)
                         {
-                            Status = VL53LX_PerformRefCalibration(dev,
-                                    &VhvSettings, &PhaseCal); // Device Initialization
+                            Status = VL53LX_PerformXTalkCalibration(dev);
 
                             if(Status == VL53LX_ERROR_NONE)
                             {
-                                Status = VL53LX_PerformRefSpadManagement(dev, &refSpadCount, &isApertureSpads); // Device Initialization
+                                Status = VL53LX_PerformOffsetSimpleCalibration(dev, 120);
 
-                                if(Status != VL53LX_ERROR_NONE)
+                                if(Status == VL53LX_ERROR_NONE)
                                 {
-                                    printf ("Call of VL53LX_PerformRefSpadManagement\n");
+                                    Status = VL53LX_GetCalibrationData(dev, pCalibrationData);
+
+                                    if(Status == VL53LX_ERROR_NONE)
+                                    {
+                                        Status = VL53LX_SetCalibrationData(dev, pCalibrationData);
+                                    }
+                                    else
+                                    {
+                                        printf ("Call of VL53LX_GetCalibrationData\n");
+                                    }
+                                }
+                                else
+                                {
+                                    printf ("Call of VL53LX_PerformOffsetSimpleCalibration\n");
                                 }
                             }
                             else
                             {
-                                printf ("Call of VL53LX_PerformRefCalibration\n");
+                                printf ("Call of VL53LX_PerformXTalkCalibration\n");
                             }
                         }
                         else
                         {
-                            printf ("Call of VL53LX_StaticInit\n");
+                            printf ("Call of VL53LX_PerformXTalkCalibration\n");
                         }
                     }
                     else
                     {
-                        printf ("Invalid Device Info\n");
+                        printf ("Call of VL53LX_PerformRefSpadManagement\n");
                     }
                 }
                 else
@@ -181,8 +182,6 @@ VL53LX_Dev_t *initialise(uint8_t i2c_address)
         {
             printf("Call of VL53LX_SetAddress\n");
         }
-
-        print_pal_error(Status);
     }
     else
     {
@@ -241,8 +240,6 @@ VL53LX_Error startRanging(VL53LX_Dev_t *dev, int mode)
     {
         printf ("Call of VL53LX_WaitDeviceBooted\n");
     }
-    
-    print_pal_error(Status);
 
     return Status;
 }
@@ -252,14 +249,14 @@ VL53LX_Error startRanging(VL53LX_Dev_t *dev, int mode)
  * @brief   Get current distance in mm
  * @return  Current distance in mm or -1 on error
  *****************************************************************************/
-VL53LX_MultiRangingData_t getDistance(VL53LX_Dev_t *dev)
+VL53LX_MultiRangingData_t getMultiRangingData(VL53LX_Dev_t *dev)
 {
     VL53LX_Error Status = VL53LX_ERROR_NONE;
 
     VL53LX_MultiRangingData_t MultiRangingData;
     VL53LX_MultiRangingData_t *pMultiRangingData = &MultiRangingData;
 
-    int8_t NewDataReady=0;
+    uint8_t NewDataReady=0;
 
     Status = VL53LX_GetMeasurementDataReady(dev, &NewDataReady);
 
@@ -296,20 +293,16 @@ VL53LX_MultiRangingData_t getDistance(VL53LX_Dev_t *dev)
 void stopRanging(VL53LX_Dev_t *dev)
 {
     VL53LX_Error Status = VL53LX_ERROR_NONE;
-
     printf ("Call of VL53LX_StopMeasurement\n");
 
     if (dev != NULL)
     {
-        Status = VL53LX_StopMeasurement(dev);
+        VL53LX_Error Status = VL53LX_StopMeasurement(dev);
 
         if(Status == VL53LX_ERROR_NONE)
         {
             printf ("Wait for stop to be completed\n");
-            Status = WaitStopCompleted(dev);
         }
-
-        print_pal_error(Status);
 
         free(dev);
         dev = NULL;
