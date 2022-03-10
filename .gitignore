@@ -8,3 +8,4 @@ obj
 *.pyc
 __pycache__
 .vscode/*
+build

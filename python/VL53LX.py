@@ -11,7 +11,6 @@
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
 #
-# The above copyright notice and this permission notice shall be included in all
 # copies or substantial portions of the Software.
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -161,9 +160,9 @@ class VL53Lx:
         """Stop VL53Lx ToF Sensor Ranging"""
         _TOF_LIBRARY.stopRanging(self._dev)
 
-    def get_distance(self):
+    def get_multi_ranging_data(self):
         """Get distance from VL53Lx ToF Sensor"""
-        return _TOF_LIBRARY.getDistance(self._dev)
+        return _TOF_LIBRARY.getMultiRangingData(self._dev)
 
     # This function included to show how to access the ST library directly
     # from python instead of through the simplified interface
