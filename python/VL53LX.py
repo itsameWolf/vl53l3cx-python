@@ -23,6 +23,7 @@
 from ctypes import CDLL, CFUNCTYPE, POINTER, c_int, c_uint, pointer, c_ubyte, c_uint8, c_uint32
 import sysconfig
 import pkg_resources
+
 SMBUS='smbus'
 for dist in pkg_resources.working_set:
     #print(dist.project_name, dist.version)
@@ -32,17 +33,19 @@ for dist in pkg_resources.working_set:
         SMBUS='smbus2'
         break
 if SMBUS == 'smbus':
+    print("using smbus2")
     import smbus
 elif SMBUS == 'smbus2':
+    print("using smbus2")
     import smbus2 as smbus
 import site
 
 
-class VL53LxError(RuntimeError):
+class VL53LXError(RuntimeError):
     pass
 
 
-class VL53LxAccuracyMode:
+class VL53LXAccuracyMode:
     GOOD = 0        # 33 ms timing budget 1.2m range
     BETTER = 1      # 66 ms timing budget 1.2m range
     BEST = 2        # 200 ms 1.2m range
@@ -50,7 +53,7 @@ class VL53LxAccuracyMode:
     HIGH_SPEED = 4  # 20 ms timing budget 1.2m range
 
 
-class VL53LxDeviceMode:
+class VL53LXDeviceMode:
     SINGLE_RANGING = 0
     CONTINUOUS_RANGING = 1
     SINGLE_HISTOGRAM = 2
@@ -60,7 +63,7 @@ class VL53LxDeviceMode:
     GPIO_OSC = 21
 
 
-class VL53LxGpioAlarmType:
+class VL53LXGpioAlarmType:
     OFF = 0
     THRESHOLD_CROSSED_LOW = 1
     THRESHOLD_CROSSED_HIGH = 2
@@ -68,7 +71,7 @@ class VL53LxGpioAlarmType:
     NEW_MEASUREMENT_READY = 4
 
 
-class VL53LxInterruptPolarity:
+class VL53LXInterruptPolarity:
     LOW = 0
     HIGH = 1
 
@@ -77,25 +80,31 @@ class VL53LxInterruptPolarity:
 _I2C_READ_FUNC = CFUNCTYPE(c_int, c_ubyte, c_ubyte, POINTER(c_ubyte), c_ubyte)
 _I2C_WRITE_FUNC = CFUNCTYPE(c_int, c_ubyte, c_ubyte, POINTER(c_ubyte), c_ubyte)
 
-# Load VL53Lx shared lib
-suffix = sysconfig.get_config_var('EXT_SUFFIX')
-if suffix is None:
-    suffix = ".so"
-_POSSIBLE_LIBRARY_LOCATIONS = ['../bin'] + site.getsitepackages() + [site.getusersitepackages()]
-for lib_location in _POSSIBLE_LIBRARY_LOCATIONS:
-    try:
-        _TOF_LIBRARY = CDLL(lib_location + '/VL53Lx_python' + suffix)
-        break
-    except OSError:
-        pass
-else:
-    raise OSError('Could not find VL53Lx_python' + suffix)
+
+_TOF_LIBRARY = CDLL('/home/ubuntu/vl53l3cx-python/bin/vl53lx_python.so')
+print(_TOF_LIBRARY)
+
+# Load VL53LX shared lib
+#suffix = None #sysconfig.get_config_var('EXT_SUFFIX')
+
+#if suffix is None:
+#    suffix = ".so"
+#
+#    _POSSIBLE_LIBRARY_LOCATIONS = ['/bin'] + site.getsitepackages() + [site.getusersitepackages()]
+#    for lib_location in _POSSIBLE_LIBRARY_LOCATIONS:
+#        lib_location
+#        try:
+#            _TOF_LIBRARY = CDLL(lib_location + '/vl53lx_python' + suffix)
+#            print("tof declared")
+#            break
+#        except OSError:
+#            pass
 
 
-class VL53Lx:
-    """VL53Lx ToF."""
+class VL53LX:
+    """VL53LX ToF."""
     def __init__(self, i2c_bus=1, i2c_address=0x29):
-        """Initialize the VL53Lx ToF Sensor from ST"""
+        """Initialize the VL53L3CX ToF Sensor from ST"""
         self._i2c_bus = i2c_bus
         self.i2c_address = i2c_address
         self._i2c = smbus.SMBus()
@@ -106,15 +115,21 @@ class VL53Lx:
         self.ADDR_I2C_ID_HIGH = 0x18 # Write serial number high byte for I2C address unlock
         self.ADDR_I2C_ID_LOW = 0x19 # Write serial number low byte for I2C address unlock
         self.ADDR_I2C_SEC_ADDR = 0x8a # Write new I2C address after unlock
+        print("ToF sensor initialised")
 
     def open(self):
+        print("opening i2c")
         self._i2c.open(bus=self._i2c_bus)
+        print("I2C opened")
         self._configure_i2c_library_functions()
-        self._dev = _TOF_LIBRARY.initialise(self.i2c_address, self._tca9548a_num, self._tca9548a_addr)
+        print("i2c functions_configured")
+        self._dev = _TOF_LIBRARY.initialise(self.i2c_address, 0)
+        print("ToF sensor initialised")
 
     def close(self):
         self._i2c.close()
         self._dev = None
+        print("I2C closed")
 
     def _configure_i2c_library_functions(self):
         # I2C bus read callback for low level library.
@@ -147,21 +162,21 @@ class VL53Lx:
 
             return ret_val
 
-        # Pass i2c read/write function pointers to VL53Lx library.
+        # Pass i2c read/write function pointers to VL53LX library.
         self._i2c_read_func = _I2C_READ_FUNC(_i2c_read)
         self._i2c_write_func = _I2C_WRITE_FUNC(_i2c_write)
-        _TOF_LIBRARY.VL53Lx_set_i2c(self._i2c_read_func, self._i2c_write_func)
+        _TOF_LIBRARY.VL53LX_i2c_init(self._i2c_read_func, self._i2c_write_func)
 
-    def start_ranging(self, mode=VL53LxAccuracyMode.GOOD):
-        """Start VL53Lx ToF Sensor Ranging"""
+    def start_ranging(self, mode=VL53LXAccuracyMode.GOOD):
+        """Start VL53LX ToF Sensor Ranging"""
         _TOF_LIBRARY.startRanging(self._dev, mode)
 
     def stop_ranging(self):
-        """Stop VL53Lx ToF Sensor Ranging"""
+        """Stop VL53LX ToF Sensor Ranging"""
         _TOF_LIBRARY.stopRanging(self._dev)
 
     def get_multi_ranging_data(self):
-        """Get distance from VL53Lx ToF Sensor"""
+        """Get distance from VL53LX ToF Sensor"""
         return _TOF_LIBRARY.getMultiRangingData(self._dev)
 
     # This function included to show how to access the ST library directly
@@ -169,44 +184,44 @@ class VL53Lx:
     def get_timing(self):
         budget = c_uint(0)
         budget_p = pointer(budget)
-        status = _TOF_LIBRARY.VL53Lx_GetMeasurementTimingBudgetMicroSeconds(self._dev, budget_p)
+        status = _TOF_LIBRARY.VL53LX_GetMeasurementTimingBudgetMicroSeconds(self._dev, budget_p)
         if status == 0:
             return budget.value + 1000
         else:
             return 0
 
     def configure_gpio_interrupt(
-            self, proximity_alarm_type=VL53LxGpioAlarmType.THRESHOLD_CROSSED_LOW,
-            interrupt_polarity=VL53LxInterruptPolarity.HIGH, threshold_low_mm=250, threshold_high_mm=500):
+            self, proximity_alarm_type=VL53LXGpioAlarmType.THRESHOLD_CROSSED_LOW,
+            interrupt_polarity=VL53LXInterruptPolarity.HIGH, threshold_low_mm=250, threshold_high_mm=500):
         """
         Configures a GPIO interrupt from device, be sure to call "clear_interrupt" after interrupt is processed.
         """
         pin = c_uint8(0)  # 0 is only GPIO pin.
-        device_mode = c_uint8(VL53LxDeviceMode.CONTINUOUS_RANGING)
+        device_mode = c_uint8(VL53LXDeviceMode.CONTINUOUS_RANGING)
         functionality = c_uint8(proximity_alarm_type)
         polarity = c_uint8(interrupt_polarity)
-        status = _TOF_LIBRARY.VL53Lx_SetGpioConfig(self._dev, pin, device_mode, functionality, polarity)
+        status = _TOF_LIBRARY.VL53LX_SetGpioConfig(self._dev, pin, device_mode, functionality, polarity)
         if status != 0:
-            raise VL53LxError('Error setting VL53Lx GPIO config')
+            raise VL53LXError('Error setting VL53LX GPIO config')
 
         threshold_low = c_uint32(threshold_low_mm << 16)
         threshold_high = c_uint32(threshold_high_mm << 16)
-        status = _TOF_LIBRARY.VL53Lx_SetInterruptThresholds(self._dev, device_mode, threshold_low, threshold_high)
+        status = _TOF_LIBRARY.VL53LX_SetInterruptThresholds(self._dev, device_mode, threshold_low, threshold_high)
         if status != 0:
-            raise VL53LxError('Error setting VL53Lx thresholds')
+            raise VL53LXError('Error setting VL53LX thresholds')
 
         # Ensure any pending interrupts are cleared.
         self.clear_interrupt()
 
     def clear_interrupt(self):
         mask = c_uint32(0)
-        status = _TOF_LIBRARY.VL53Lx_ClearInterruptMask(self._dev, mask)
+        status = _TOF_LIBRARY.VL53LX_ClearInterruptMask(self._dev, mask)
         if status != 0:
-            raise VL53LxError('Error clearing VL53Lx interrupt')
+            raise VL53LXError('Error clearing VL53LX interrupt')
 
     def change_address(self, new_address):
         if self._dev is not None:
-            raise VL53LxError('Error changing VL53Lx address')
+            raise VL53LXError('Error changing VL53LX address')
 
         self._i2c.open(bus=self._i2c_bus)
 
